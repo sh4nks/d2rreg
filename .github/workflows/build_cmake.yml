@@ -56,7 +56,7 @@ jobs:
     - name: Add to Release
       uses: ncipollo/release-action@v1
       with:
-        artifacts: "*.exe"
+        artifacts: "${{ steps.strings.outputs.build-output-dir }}/${{ env.BUILD_TYPE }}/d2rreg.exe"
         artifactErrorsFailBuild: true
         allowUpdates: true
         generateReleaseNotes: false
