@@ -54,14 +54,15 @@ jobs:
       run: ctest -C ${{env.BUILD_TYPE}}
       
     - name: Add to Release
-        uses: ncipollo/release-action@v1
-        with:
-          artifacts: "*.exe"
-          artifactErrorsFailBuild: true
-          allowUpdates: true
-          generateReleaseNotes: false
-          omitBody: true
-          omitBodyDuringUpdate: true
-          omitDraftDuringUpdate: true
-          replacesArtifacts: true
+      uses: ncipollo/release-action@v1
+      with:
+        artifacts: "*.exe"
+        artifactErrorsFailBuild: true
+        allowUpdates: true
+        generateReleaseNotes: false
+        omitBody: true
+        omitBodyDuringUpdate: true
+        omitDraftDuringUpdate: true
+        replacesArtifacts: true
+
 
