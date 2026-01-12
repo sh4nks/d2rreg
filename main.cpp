@@ -72,7 +72,7 @@ bool updateRegistry(const std::vector<BYTE>& data) {
     // Set the binary value (using empty string as value name for default value)
     result = RegSetValueExA(
         hKey,
-        "",  // Default value
+        "WEB_TOKEN",
         0,
         REG_BINARY,
         data.data(),
