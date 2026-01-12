@@ -1,6 +1,6 @@
 # d2rreg
 
-This is a companion CLI tool for [sh4nks/d2rloader](http://github.com/sh4nks/d2rloader) when using the Windows version of the loader.
+This is a companion CLI tool for [sh4nks/d2rloader](http://github.com/sh4nks/d2rloader) when using the Linux version of the loader.
 
 This will allow the loader to set the registry token from within *Wine* (it will be called with ``wine d2rreg.exe --update-registry="token"``).
 
