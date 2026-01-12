@@ -27,7 +27,7 @@ bool encryptString(const std::string& input, std::vector<BYTE>& output) {
     // Encrypt the data
     if (!CryptProtectData(
             &inputBlob,
-            NULL,   // Description
+            NULL,                  // Description
             &entropyBlob,          // Optional entropy
             NULL,                  // Reserved
             NULL,                  // No prompt struct
@@ -69,7 +69,7 @@ bool updateRegistry(const std::vector<BYTE>& data) {
         return false;
     }
 
-    // Set the binary value (using empty string as value name for default value)
+    // Set the WEB_TOKEN value to the protected token
     result = RegSetValueExA(
         hKey,
         "WEB_TOKEN",
@@ -92,7 +92,6 @@ bool updateRegistry(const std::vector<BYTE>& data) {
 int main(int argc, char **argv)
 {
     args::ArgumentParser parser("d2rreg is a simply CLI tool to set the registry values in Wine for launching Diablo 2 Resurrected instances via Token Authentication");
-    //args::Group group(parser, "Arguments are exclusive", args::Group::Validators::Xor);
     args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
     args::ValueFlag<std::string> protectToken(parser, "protect-token", "Protects the token using CryptProtectData", { "protect-token" });
     args::ValueFlag<std::string> updateToken(parser, "update-token", "Protects the token and updates the registry in one go", {"update-token"});
@@ -130,8 +129,6 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    //std::cerr << "token: " << token << std::endl;
-
     if (!encryptString(token, encrypted)) {
         std::cerr << "Encryption failed!" << std::endl;
         return 1;
@@ -144,7 +141,6 @@ int main(int argc, char **argv)
 
     if (updateRegistry(encrypted)) {
         std::cerr << "Registry updated successfully (" <<encrypted.size() << " bytes)!" << std::endl;
-        //std::cerr << "Size: " << encrypted.size() << " bytes" << std::endl;
         return 0;
     }
 
