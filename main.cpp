@@ -1,4 +1,3 @@
-#include <args.hxx>
 #include <windows.h>
 #include <wincrypt.h>
 #include <iostream>
@@ -89,62 +88,91 @@ bool updateRegistry(const std::vector<BYTE>& data) {
     return true;
 }
 
+void show_help(const char* app_name) {
+    std::cout << "d2rreg is a simple CLI tool to set the registry values in Wine for launching Diablo 2 Resurrected instances via Token Authentication" << std::endl;
+    std::cout << "Usage: " << app_name << " [options]" << std::endl;
+    std::cout << "Options:" << std::endl;
+    std::cout << "  -h, --help            Display this help menu" << std::endl;
+    std::cout << "  --protect-token <token> Protects the token using CryptProtectData" << std::endl;
+    std::cout << "  --update-token <token>  Protects the token and updates the registry in one go" << std::endl;
+}
+
 int main(int argc, char **argv)
 {
-    args::ArgumentParser parser("d2rreg is a simply CLI tool to set the registry values in Wine for launching Diablo 2 Resurrected instances via Token Authentication");
-    args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
-    args::ValueFlag<std::string> protectToken(parser, "protect-token", "Protects the token using CryptProtectData", { "protect-token" });
-    args::ValueFlag<std::string> updateToken(parser, "update-token", "Protects the token and updates the registry in one go", {"update-token"});
-    try {
-        parser.ParseCLI(argc, argv);
-    } catch (args::Help) {
-        std::cout << parser;
+    if (argc < 2) {
+        show_help(argv[0]);
         return 0;
-    } catch (args::ParseError e) {
-        std::cerr << e.what() << std::endl;
-        std::cerr << parser;
-        return 1;
-    } catch (args::ValidationError e) {
-        std::cerr << e.what() << std::endl;
-        std::cerr << parser;
-        return 1;
     }
 
-    std::vector<BYTE> encrypted;
     std::string token;
+    std::string mode;
 
-    if (protectToken) {
-        token = args::get(protectToken);
-    } else if (updateToken) {
-        token = args::get(updateToken);
-    } else {
-        // no arguments provided - display help
-        std::cout << parser;
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "-h" || arg == "--help") {
+            show_help(argv[0]);
+            return 0;
+        } else if (arg == "--protect-token") {
+            if (!mode.empty()) {
+                 std::cerr << "Error: Only one of --protect-token or --update-token can be used." << std::endl;
+                 return 1;
+            }
+            if (i + 1 < argc) {
+                token = argv[++i];
+                mode = "protect";
+            } else {
+                std::cerr << "Error: --protect-token requires an argument." << std::endl;
+                return 1;
+            }
+        } else if (arg == "--update-token") {
+            if (!mode.empty()) {
+                 std::cerr << "Error: Only one of --protect-token or --update-token can be used." << std::endl;
+                 return 1;
+            }
+            if (i + 1 < argc) {
+                token = argv[++i];
+                mode = "update";
+            } else {
+                std::cerr << "Error: --update-token requires an argument." << std::endl;
+                return 1;
+            }
+        } else {
+            std::cerr << "Error: Unknown argument " << arg << std::endl;
+            show_help(argv[0]);
+            return 1;
+        }
+    }
+
+    if (mode.empty()) {
+        show_help(argv[0]);
         return 0;
     }
 
     if (token.size() < 1) {
-        std::cout << parser;
-        std::cerr << "d2rreg: no token provided!";
+        std::cerr << "d2rreg: no token provided!" << std::endl;
         return 1;
     }
 
+    std::vector<BYTE> encrypted;
     if (!encryptString(token, encrypted)) {
         std::cerr << "Encryption failed!" << std::endl;
         return 1;
     }
 
-    if (protectToken) {
+    if (mode == "protect") {
         std::cout.write(reinterpret_cast<const char*>(encrypted.data()), encrypted.size());
         return 0;
     }
 
-    if (updateRegistry(encrypted)) {
-        std::cerr << "Registry updated successfully (" <<encrypted.size() << " bytes)!" << std::endl;
-        return 0;
+    if (mode == "update") {
+        if (updateRegistry(encrypted)) {
+            std::cerr << "Registry updated successfully (" << encrypted.size() << " bytes)!" << std::endl;
+            return 0;
+        } else {
+            std::cerr << "Couldn't update registry!" << std::endl;
+            return 1;
+        }
     }
 
-    std::cerr << "Couldn't update registry!" << std::endl;
     return 1;
-
 }

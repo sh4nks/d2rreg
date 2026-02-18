@@ -11,6 +11,41 @@ This tool makes it possible for the [d2rloader](http://github.com/sh4nks/d2rload
 
 This is the first time me writing C++ - Please be kind :D
 
+## Building
+
+### Linux (Cross-Compilation for Windows)
+
+To build this project on Linux for Windows, you will need to have the MinGW-w64 toolchain installed.
+
+**1. Install MinGW-w64:**
+
+On Arch Linux, you can install it with:
+
+```bash
+sudo pacman -S mingw-w64-gcc
+```
+
+**2. Build the project:**
+
+```bash
+mkdir build
+cmake -B build -DCMAKE_TOOLCHAIN_FILE=./toolchain-mingw.cmake
+cmake --build build/
+```
+
+### Windows (Native)
+
+To build this project on Windows, you will need to have Visual Studio and CMake installed.
+
+**1. Build with CMake:**
+
+Open a command prompt or PowerShell and run the following commands from the project's root directory:
+
+```powershell
+mkdir build
+cmake -B build
+cmake --build build/
+```
 
 # License
 
