@@ -88,6 +88,36 @@ bool updateRegistry(const std::vector<BYTE>& data) {
     return true;
 }
 
+struct RenameWindowParams {
+    std::string targetTitle;
+    std::string newTitle;
+};
+
+BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
+    // see: https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-enumwindows
+    RenameWindowParams* params = reinterpret_cast<RenameWindowParams*>(lParam);
+    char windowTitle[256];
+
+    if (GetWindowTextA(hwnd, windowTitle, sizeof(windowTitle))) {
+        if (params->targetTitle == windowTitle) {
+            // Set the new window title
+            SetWindowTextA(hwnd, params->newTitle.c_str());
+            // return FALSE to only rename the first instance found
+            // return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+void renameWindow(const std::string& targetTitle, const std::string& newTitle) {
+    RenameWindowParams params;
+    params.targetTitle = targetTitle;
+    params.newTitle = newTitle;
+
+    EnumWindows(EnumWindowsProc, reinterpret_cast<LPARAM>(&params));
+    std::cout << "Attempted to rename windows from \"" << targetTitle << "\" to \"" << newTitle << "\"" << std::endl;
+}
+
 void show_help(const char* app_name) {
     std::cout << "d2rreg is a simple CLI tool to set the registry values in Wine for launching Diablo 2 Resurrected instances via Token Authentication" << std::endl;
     std::cout << "Usage: " << app_name << " [options]" << std::endl;
@@ -95,6 +125,7 @@ void show_help(const char* app_name) {
     std::cout << "  -h, --help            Display this help menu" << std::endl;
     std::cout << "  --protect-token <token> Protects the token using CryptProtectData" << std::endl;
     std::cout << "  --update-token <token>  Protects the token and updates the registry in one go" << std::endl;
+    std::cout << "  --rename-window <title> Finds all 'Diablo II: Resurrected' windows and renames them to <title>" << std::endl;
 }
 
 int main(int argc, char **argv)
@@ -106,6 +137,7 @@ int main(int argc, char **argv)
 
     std::string token;
     std::string mode;
+    std::string windowRenameTitle;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -114,7 +146,7 @@ int main(int argc, char **argv)
             return 0;
         } else if (arg == "--protect-token") {
             if (!mode.empty()) {
-                 std::cerr << "Error: Only one of --protect-token or --update-token can be used." << std::endl;
+                 std::cerr << "Error: Only one of --protect-token, --update-token, or --rename-window can be used." << std::endl;
                  return 1;
             }
             if (i + 1 < argc) {
@@ -126,7 +158,7 @@ int main(int argc, char **argv)
             }
         } else if (arg == "--update-token") {
             if (!mode.empty()) {
-                 std::cerr << "Error: Only one of --protect-token or --update-token can be used." << std::endl;
+                 std::cerr << "Error: Only one of --protect-token, --update-token, or --rename-window can be used." << std::endl;
                  return 1;
             }
             if (i + 1 < argc) {
@@ -134,6 +166,18 @@ int main(int argc, char **argv)
                 mode = "update";
             } else {
                 std::cerr << "Error: --update-token requires an argument." << std::endl;
+                return 1;
+            }
+        } else if (arg == "--rename-window") {
+            if (!mode.empty()) {
+                 std::cerr << "Error: Only one of --protect-token, --update-token, or --rename-window can be used." << std::endl;
+                 return 1;
+            }
+            if (i + 1 < argc) {
+                windowRenameTitle = argv[++i];
+                mode = "rename";
+            } else {
+                std::cerr << "Error: --rename-window requires an argument." << std::endl;
                 return 1;
             }
         } else {
@@ -148,30 +192,46 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    if (token.size() < 1) {
-        std::cerr << "d2rreg: no token provided!" << std::endl;
-        return 1;
-    }
-
-    std::vector<BYTE> encrypted;
-    if (!encryptString(token, encrypted)) {
-        std::cerr << "Encryption failed!" << std::endl;
-        return 1;
-    }
-
     if (mode == "protect") {
+        if (token.size() < 1) {
+            std::cerr << "d2rreg: no token provided for --protect-token!" << std::endl;
+            return 1;
+        }
+        std::vector<BYTE> encrypted;
+        if (!encryptString(token, encrypted)) {
+            std::cerr << "Encryption failed!" << std::endl;
+            return 1;
+        }
         std::cout.write(reinterpret_cast<const char*>(encrypted.data()), encrypted.size());
         return 0;
     }
 
     if (mode == "update") {
+        if (token.size() < 1) {
+            std::cerr << "d2rreg: no token provided for --update-token!" << std::endl;
+            return 1;
+        }
+        std::vector<BYTE> encrypted;
+        if (!encryptString(token, encrypted)) {
+            std::cerr << "Encryption failed!" << std::endl;
+            return 1;
+        }
         if (updateRegistry(encrypted)) {
             std::cerr << "Registry updated successfully (" << encrypted.size() << " bytes)!" << std::endl;
             return 0;
         } else {
-            std::cerr << "Couldn't update registry!" << std::endl;
+            std::cerr << "Couldn\'t update registry!" << std::endl;
             return 1;
         }
+    }
+
+    if (mode == "rename") {
+        if (windowRenameTitle.empty()) {
+            std::cerr << "d2rreg: no title provided for --rename-window!" << std::endl;
+            return 1;
+        }
+        renameWindow("Diablo II: Resurrected", windowRenameTitle);
+        return 0;
     }
 
     return 1;
