@@ -91,6 +91,7 @@ bool updateRegistry(const std::vector<BYTE>& data) {
 struct RenameWindowParams {
     std::string targetTitle;
     std::string newTitle;
+    int renamed = 0;
 };
 
 BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
@@ -99,23 +100,20 @@ BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
     char windowTitle[256];
 
     if (GetWindowTextA(hwnd, windowTitle, sizeof(windowTitle))) {
-        if (params->targetTitle == windowTitle) {
-            // Set the new window title
-            SetWindowTextA(hwnd, params->newTitle.c_str());
-            // return FALSE to only rename the first instance found
-            // return FALSE;
+        if (params->targetTitle == windowTitle && SetWindowTextA(hwnd, params->newTitle.c_str())) {
+            ++params->renamed;
         }
     }
     return TRUE;
 }
 
-void renameWindow(const std::string& targetTitle, const std::string& newTitle) {
+int renameWindow(const std::string& targetTitle, const std::string& newTitle) {
     RenameWindowParams params;
     params.targetTitle = targetTitle;
     params.newTitle = newTitle;
 
     EnumWindows(EnumWindowsProc, reinterpret_cast<LPARAM>(&params));
-    std::cout << "Attempted to rename windows from \"" << targetTitle << "\" to \"" << newTitle << "\"" << std::endl;
+    return params.renamed;
 }
 
 void show_help(const char* app_name) {
@@ -125,7 +123,8 @@ void show_help(const char* app_name) {
     std::cout << "  -h, --help            Display this help menu" << std::endl;
     std::cout << "  --protect-token <token> Protects the token using CryptProtectData" << std::endl;
     std::cout << "  --update-token <token>  Protects the token and updates the registry in one go" << std::endl;
-    std::cout << "  --rename-window <title> Finds all 'Diablo II: Resurrected' windows and renames them to <title>" << std::endl;
+    std::cout << "  --rename-window <title> Finds all 'Diablo II: Resurrected' windows and renames them to <title>." << std::endl;
+    std::cout << "                          Exits with 1 if no such window exists (yet)." << std::endl;
 }
 
 int main(int argc, char **argv)
@@ -230,7 +229,12 @@ int main(int argc, char **argv)
             std::cerr << "d2rreg: no title provided for --rename-window!" << std::endl;
             return 1;
         }
-        renameWindow("Diablo II: Resurrected", windowRenameTitle);
+        const int renamed = renameWindow("Diablo II: Resurrected", windowRenameTitle);
+        if (renamed == 0) {
+            std::cerr << "d2rreg: no 'Diablo II: Resurrected' window found!" << std::endl;
+            return 1;
+        }
+        std::cout << "Renamed " << renamed << " window(s) to \"" << windowRenameTitle << "\"" << std::endl;
         return 0;
     }
 
