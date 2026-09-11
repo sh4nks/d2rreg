@@ -1,6 +1,8 @@
 #include <windows.h>
 #include <wincrypt.h>
+#include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -116,6 +118,74 @@ int renameWindow(const std::string& targetTitle, const std::string& newTitle) {
     return params.renamed;
 }
 
+// How often --watch-window looks at the window, in milliseconds.
+const DWORD WatchInterval = 500;
+
+bool parseInt(const char* text, int& value) {
+    char* end = nullptr;
+    const long parsed = std::strtol(text, &end, 10);
+    if (end == text || *end != '\0') {
+        return false;
+    }
+    value = static_cast<int>(parsed);
+    return true;
+}
+
+// Fullscreen and borderless windows have no caption and sit where their
+// monitor is, and a minimized window reports a position far off screen.
+bool isWindowed(HWND hwnd) {
+    return (GetWindowLongPtrA(hwnd, GWL_STYLE) & WS_CAPTION) == WS_CAPTION && !IsIconic(hwnd);
+}
+
+int moveWindow(const std::string& title, int x, int y) {
+    HWND hwnd = FindWindowA(NULL, title.c_str());
+    if (!hwnd) {
+        std::cerr << "d2rreg: no '" << title << "' window found!" << std::endl;
+        return 1;
+    }
+    if (!isWindowed(hwnd)) {
+        std::cout << "Left the window in place, it is not in windowed mode" << std::endl;
+        return 0;
+    }
+
+    RECT rect;
+    GetWindowRect(hwnd, &rect);
+    OffsetRect(&rect, x - rect.left, y - rect.top);
+    if (!MonitorFromRect(&rect, MONITOR_DEFAULTTONULL)) {
+        std::cout << "Left the window in place, " << x << "," << y << " is on no monitor" << std::endl;
+        return 0;
+    }
+
+    SetWindowPos(hwnd, NULL, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    std::cout << "Moved the window to " << x << "," << y << std::endl;
+    return 0;
+}
+
+int watchWindow(const std::string& title) {
+    HWND hwnd = FindWindowA(NULL, title.c_str());
+    if (!hwnd) {
+        std::cerr << "d2rreg: no '" << title << "' window found!" << std::endl;
+        return 1;
+    }
+
+    // A position is only reported once it held for an interval, so dragging
+    // the window reports where it was dropped rather than every step.
+    RECT previous = {};
+    std::optional<POINT> reported;
+    RECT rect;
+    while (GetWindowRect(hwnd, &rect)) {
+        const bool settled = rect.left == previous.left && rect.top == previous.top;
+        const bool moved = !reported || rect.left != reported->x || rect.top != reported->y;
+        if (settled && moved && isWindowed(hwnd)) {
+            std::cout << rect.left << " " << rect.top << std::endl;
+            reported = POINT{rect.left, rect.top};
+        }
+        previous = rect;
+        Sleep(WatchInterval);
+    }
+    return 0;
+}
+
 void show_help(const char* app_name) {
     std::cout << "d2rreg is a simple CLI tool to set the registry values in Wine for launching Diablo 2 Resurrected instances via Token Authentication" << std::endl;
     std::cout << "Usage: " << app_name << " [options]" << std::endl;
@@ -125,6 +195,13 @@ void show_help(const char* app_name) {
     std::cout << "  --update-token <token>  Protects the token and updates the registry in one go" << std::endl;
     std::cout << "  --rename-window <title> Finds all 'Diablo II: Resurrected' windows and renames them to <title>." << std::endl;
     std::cout << "                          Exits with 1 if no such window exists (yet)." << std::endl;
+    std::cout << "  --move-window <title> <x> <y>" << std::endl;
+    std::cout << "                          Moves the window titled <title> to <x>,<y>, unless it is not in" << std::endl;
+    std::cout << "                          windowed mode or would end up on no monitor." << std::endl;
+    std::cout << "                          Exits with 1 if no such window exists." << std::endl;
+    std::cout << "  --watch-window <title>  Prints '<x> <y>' whenever the window titled <title> is moved to a" << std::endl;
+    std::cout << "                          new position in windowed mode, and exits once the window is gone." << std::endl;
+    std::cout << "                          Exits with 1 if no such window exists." << std::endl;
 }
 
 int main(int argc, char **argv)
@@ -137,6 +214,9 @@ int main(int argc, char **argv)
     std::string token;
     std::string mode;
     std::string windowRenameTitle;
+    std::string windowTitle;
+    int windowX = 0;
+    int windowY = 0;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -145,7 +225,7 @@ int main(int argc, char **argv)
             return 0;
         } else if (arg == "--protect-token") {
             if (!mode.empty()) {
-                 std::cerr << "Error: Only one of --protect-token, --update-token, or --rename-window can be used." << std::endl;
+                 std::cerr << "Error: Only one of --protect-token, --update-token, --rename-window, --move-window or --watch-window can be used." << std::endl;
                  return 1;
             }
             if (i + 1 < argc) {
@@ -157,7 +237,7 @@ int main(int argc, char **argv)
             }
         } else if (arg == "--update-token") {
             if (!mode.empty()) {
-                 std::cerr << "Error: Only one of --protect-token, --update-token, or --rename-window can be used." << std::endl;
+                 std::cerr << "Error: Only one of --protect-token, --update-token, --rename-window, --move-window or --watch-window can be used." << std::endl;
                  return 1;
             }
             if (i + 1 < argc) {
@@ -169,7 +249,7 @@ int main(int argc, char **argv)
             }
         } else if (arg == "--rename-window") {
             if (!mode.empty()) {
-                 std::cerr << "Error: Only one of --protect-token, --update-token, or --rename-window can be used." << std::endl;
+                 std::cerr << "Error: Only one of --protect-token, --update-token, --rename-window, --move-window or --watch-window can be used." << std::endl;
                  return 1;
             }
             if (i + 1 < argc) {
@@ -177,6 +257,31 @@ int main(int argc, char **argv)
                 mode = "rename";
             } else {
                 std::cerr << "Error: --rename-window requires an argument." << std::endl;
+                return 1;
+            }
+        } else if (arg == "--move-window") {
+            if (!mode.empty()) {
+                 std::cerr << "Error: Only one of --protect-token, --update-token, --rename-window, --move-window or --watch-window can be used." << std::endl;
+                 return 1;
+            }
+            if (i + 3 < argc && parseInt(argv[i + 2], windowX) && parseInt(argv[i + 3], windowY)) {
+                windowTitle = argv[i + 1];
+                i += 3;
+                mode = "move";
+            } else {
+                std::cerr << "Error: --move-window requires a title and two whole numbers." << std::endl;
+                return 1;
+            }
+        } else if (arg == "--watch-window") {
+            if (!mode.empty()) {
+                 std::cerr << "Error: Only one of --protect-token, --update-token, --rename-window, --move-window or --watch-window can be used." << std::endl;
+                 return 1;
+            }
+            if (i + 1 < argc) {
+                windowTitle = argv[++i];
+                mode = "watch";
+            } else {
+                std::cerr << "Error: --watch-window requires an argument." << std::endl;
                 return 1;
             }
         } else {
@@ -236,6 +341,18 @@ int main(int argc, char **argv)
         }
         std::cout << "Renamed " << renamed << " window(s) to \"" << windowRenameTitle << "\"" << std::endl;
         return 0;
+    }
+
+    // Per monitor aware, so positions are physical pixels on every monitor
+    // whatever its scaling, as they are for the game itself.
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
+    if (mode == "move") {
+        return moveWindow(windowTitle, windowX, windowY);
+    }
+
+    if (mode == "watch") {
+        return watchWindow(windowTitle);
     }
 
     return 1;
