@@ -186,6 +186,24 @@ int watchWindow(const std::string& title) {
     return 0;
 }
 
+// The click is posted to the window's own message queue, so it reaches the
+// window whether or not it has the focus and leaves the mouse pointer alone.
+int clickWindow(const std::string& title, int x, int y) {
+    HWND hwnd = FindWindowA(NULL, title.c_str());
+    if (!hwnd) {
+        std::cerr << "d2rreg: no '" << title << "' window found!" << std::endl;
+        return 1;
+    }
+
+    const LPARAM position = MAKELPARAM(x, y);
+    if (!PostMessageA(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, position) || !PostMessageA(hwnd, WM_LBUTTONUP, 0, position)) {
+        std::cerr << "d2rreg: could not click the window. Error code: " << GetLastError() << std::endl;
+        return 1;
+    }
+    std::cout << "Clicked the window at " << x << "," << y << std::endl;
+    return 0;
+}
+
 void show_help(const char* app_name) {
     std::cout << "d2rreg is a simple CLI tool to set the registry values in Wine for launching Diablo 2 Resurrected instances via Token Authentication" << std::endl;
     std::cout << "Usage: " << app_name << " [options]" << std::endl;
@@ -201,6 +219,11 @@ void show_help(const char* app_name) {
     std::cout << "                          Exits with 1 if no such window exists." << std::endl;
     std::cout << "  --watch-window <title>  Prints '<x> <y>' whenever the window titled <title> is moved to a" << std::endl;
     std::cout << "                          new position in windowed mode, and exits once the window is gone." << std::endl;
+    std::cout << "                          Exits with 1 if no such window exists." << std::endl;
+    std::cout << "  --click-window <title> <x> <y>" << std::endl;
+    std::cout << "                          Clicks the window titled <title> with the left mouse button at" << std::endl;
+    std::cout << "                          <x>,<y> of its content, without focusing it or moving the mouse" << std::endl;
+    std::cout << "                          pointer." << std::endl;
     std::cout << "                          Exits with 1 if no such window exists." << std::endl;
 }
 
@@ -225,7 +248,7 @@ int main(int argc, char **argv)
             return 0;
         } else if (arg == "--protect-token") {
             if (!mode.empty()) {
-                 std::cerr << "Error: Only one of --protect-token, --update-token, --rename-window, --move-window or --watch-window can be used." << std::endl;
+                 std::cerr << "Error: Only one of --protect-token, --update-token, --rename-window, --move-window, --watch-window or --click-window can be used." << std::endl;
                  return 1;
             }
             if (i + 1 < argc) {
@@ -237,7 +260,7 @@ int main(int argc, char **argv)
             }
         } else if (arg == "--update-token") {
             if (!mode.empty()) {
-                 std::cerr << "Error: Only one of --protect-token, --update-token, --rename-window, --move-window or --watch-window can be used." << std::endl;
+                 std::cerr << "Error: Only one of --protect-token, --update-token, --rename-window, --move-window, --watch-window or --click-window can be used." << std::endl;
                  return 1;
             }
             if (i + 1 < argc) {
@@ -249,7 +272,7 @@ int main(int argc, char **argv)
             }
         } else if (arg == "--rename-window") {
             if (!mode.empty()) {
-                 std::cerr << "Error: Only one of --protect-token, --update-token, --rename-window, --move-window or --watch-window can be used." << std::endl;
+                 std::cerr << "Error: Only one of --protect-token, --update-token, --rename-window, --move-window, --watch-window or --click-window can be used." << std::endl;
                  return 1;
             }
             if (i + 1 < argc) {
@@ -261,7 +284,7 @@ int main(int argc, char **argv)
             }
         } else if (arg == "--move-window") {
             if (!mode.empty()) {
-                 std::cerr << "Error: Only one of --protect-token, --update-token, --rename-window, --move-window or --watch-window can be used." << std::endl;
+                 std::cerr << "Error: Only one of --protect-token, --update-token, --rename-window, --move-window, --watch-window or --click-window can be used." << std::endl;
                  return 1;
             }
             if (i + 3 < argc && parseInt(argv[i + 2], windowX) && parseInt(argv[i + 3], windowY)) {
@@ -274,7 +297,7 @@ int main(int argc, char **argv)
             }
         } else if (arg == "--watch-window") {
             if (!mode.empty()) {
-                 std::cerr << "Error: Only one of --protect-token, --update-token, --rename-window, --move-window or --watch-window can be used." << std::endl;
+                 std::cerr << "Error: Only one of --protect-token, --update-token, --rename-window, --move-window, --watch-window or --click-window can be used." << std::endl;
                  return 1;
             }
             if (i + 1 < argc) {
@@ -282,6 +305,19 @@ int main(int argc, char **argv)
                 mode = "watch";
             } else {
                 std::cerr << "Error: --watch-window requires an argument." << std::endl;
+                return 1;
+            }
+        } else if (arg == "--click-window") {
+            if (!mode.empty()) {
+                 std::cerr << "Error: Only one of --protect-token, --update-token, --rename-window, --move-window, --watch-window or --click-window can be used." << std::endl;
+                 return 1;
+            }
+            if (i + 3 < argc && parseInt(argv[i + 2], windowX) && parseInt(argv[i + 3], windowY)) {
+                windowTitle = argv[i + 1];
+                i += 3;
+                mode = "click";
+            } else {
+                std::cerr << "Error: --click-window requires a title and two whole numbers." << std::endl;
                 return 1;
             }
         } else {
@@ -353,6 +389,10 @@ int main(int argc, char **argv)
 
     if (mode == "watch") {
         return watchWindow(windowTitle);
+    }
+
+    if (mode == "click") {
+        return clickWindow(windowTitle, windowX, windowY);
     }
 
     return 1;
